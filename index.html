@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Type & Destroy – Sky Edition</title>
+
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: linear-gradient(#7ec8ff, #eaf6ff);
+    font-family: Arial, sans-serif;
+}
+
+canvas {
+    display: block;
+}
+
+/* HUD */
+#hud {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    font-size: 16px;
+    color: #000;
+}
+
+#hearts {
+    font-size: 22px;
+    margin-top: 5px;
+}
+
+/* Input */
+#inputBox {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+input {
+    padding: 10px;
+    font-size: 18px;
+    width: 280px;
+    text-align: center;
+    border: 2px solid #333;
+    outline: none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="hud">
+    🎯 Score: <span id="score">0</span><br>
+    ⚡ Level: <span id="level">1</span>
+    <div id="hearts">❤️ ❤️ ❤️</div>
+</div>
+
+<div id="inputBox">
+    <input id="typeInput" placeholder="Type enemy word here..." autofocus>
+</div>
+
+<canvas id="game"></canvas>
+
+<script>
+/* CANVAS */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+canvas.width = innerWidth;
+canvas.height = innerHeight;
+
+window.onresize = () => {
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+};
+
+/* GAME STATE */
+let score = 0;
+let level = 1;
+let lives = 3;
+let enemies = [];
+let lockedEnemy = null;
+
+/* WORD LEVELS (easy → medium) */
+const wordLevels = [
+    ["cat", "sun", "pen", "cup", "sky"],
+    ["plane", "cloud", "river"],
+    ["coding", "docker", "flight"],
+    ["developer", "keyboard"]
+];
+
+/* INPUT */
+const input = document.getElementById("typeInput");
+
+/* DRAW PLANE */
+function drawPlane(x, y, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 14);
+    ctx.lineTo(x - 12, y + 14);
+    ctx.lineTo(x, y + 6);
+    ctx.lineTo(x + 12, y + 14);
+    ctx.closePath();
+    ctx.fill();
+}
+
+/* SPAWN ENEMY */
+function spawnEnemy() {
+    const words = wordLevels[Math.min(level - 1, wordLevels.length - 1)];
+    const word = words[Math.floor(Math.random() * words.length)];
+
+    enemies.push({
+        x: Math.random() * (canvas.width - 100) + 50,
+        y: -40,
+        speed: 0.6 + level * 0.3,
+        word,
+        typed: "",
+        state: "alive", // alive | fried
+        fryY: null
+    });
+}
+
+/* HEART UI */
+function updateHearts() {
+    document.getElementById("hearts").innerText = "❤️ ".repeat(lives);
+}
+
+/* GAME OVER */
+function gameOver() {
+    alert("Game Over!\nScore: " + score);
+    location.reload();
+}
+
+/* UPDATE */
+function update() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Player plane (static bottom)
+    drawPlane(canvas.width / 2, canvas.height - 90, "#00cfff");
+
+    enemies.forEach((e, index) => {
+        if (e.state === "alive") {
+            e.y += e.speed;
+
+            // Draw enemy
+            drawPlane(e.x, e.y, "#ff4444");
+
+            // Word
+            ctx.fillStyle = "#000";
+            ctx.font = "16px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText(e.word, e.x, e.y - 20);
+
+            // Too close or reached bottom → lose life
+            if (e.y > canvas.height - 140) {
+                enemies.splice(index, 1);
+                lives--;
+                updateHearts();
+                lockedEnemy = null;
+                input.value = "";
+
+                if (lives <= 0) gameOver();
+            }
+        }
+
+        // Fried animation (go up + fade)
+        if (e.state === "fried") {
+            e.fryY -= 2;
+            ctx.fillStyle = "orange";
+            ctx.font = "18px Arial";
+            ctx.fillText("🍗", e.x, e.fryY);
+
+            if (e.fryY < -20) {
+                enemies.splice(index, 1);
+            }
+        }
+    });
+
+    requestAnimationFrame(update);
+}
+
+/* TYPING LOGIC */
+input.addEventListener("input", () => {
+    const value = input.value.toLowerCase();
+
+    // Lock enemy on first letter
+    if (!lockedEnemy) {
+        lockedEnemy = enemies.find(e => e.state === "alive" && e.word.startsWith(value));
+    }
+
+    if (!lockedEnemy) return;
+
+    // Must complete same word
+    if (!lockedEnemy.word.startsWith(value)) {
+        input.value = lockedEnemy.typed;
+        return;
+    }
+
+    lockedEnemy.typed = value;
+
+    // Word completed
+    if (value === lockedEnemy.word) {
+        lockedEnemy.state = "fried";
+        lockedEnemy.fryY = lockedEnemy.y;
+
+        score += 10;
+        document.getElementById("score").innerText = score;
+
+        input.value = "";
+        lockedEnemy = null;
+
+        if (score % 50 === 0) {
+            level++;
+            document.getElementById("level").innerText = level;
+        }
+    }
+});
+
+/* SPAWN LOOP */
+setInterval(spawnEnemy, 2000);
+
+/* START */
+updateHearts();
+update();
+</script>
+
+</body>
+</html>
